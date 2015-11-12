@@ -1,0 +1,37 @@
+import "oaidl.idl";
+import "ocidl.idl";
+
+cpp_quote("//////////////////////////////////////////////////////////////////////////")
+cpp_quote("//")
+cpp_quote("//	original file name: SolveigMMConfig.idl ")
+cpp_quote("//")
+cpp_quote("//////////////////////////////////////////////////////////////////////////")
+cpp_quote("//")
+cpp_quote("//	Copyright (c) 2015 SolveigMultimedia")
+cpp_quote("//////////////////////////////////////////////////////////////////////////")
+cpp_quote("")
+cpp_quote("")
+cpp_quote("// {FDE12848-9E2C-4ae4-B20A-9DEC56A653D8}")
+cpp_quote("DEFINE_GUID(IID_ISMMModuleConfig, 0xfde12848, 0x9e2c, 0x4ae4, 0xb2, 0xa, 0x9d, 0xec, 0x56, 0xa6, 0x53, 0xd8);")
+cpp_quote("")
+cpp_quote("")
+
+
+[
+    object,
+    local,
+    uuid(FDE12848-9E2C-4ae4-B20A-9DEC56A653D8),
+    pointer_default(unique)
+]
+
+interface ISMMModuleConfig: IUnknown
+{
+    [helpstring("method SetValue assigns the new value to the module parameter identified by pParamID unique identifier, it should be verified and applied to the inside state of module by the call to CommitChanges")]
+		HRESULT SetValue([in] const GUID* pParamID, [in]  const VARIANT* pValue);
+
+    [helpstring("method GetValue retrieves the value of the module parameter identified by pParamID unique identifier")]
+		HRESULT GetValue([in] const GUID* pParamID, [out] VARIANT* pValue);
+
+    [helpstring("method CommitChanges verifies and applies changes of parameters to the internal state of the module")]
+		HRESULT CommitChanges([out] VARIANT* pReason);
+}
