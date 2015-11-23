@@ -543,6 +543,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\ParseMP3Frame.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\pins.cpp"
 				>
 			</File>
@@ -559,10 +563,15 @@
 				>
 			</File>
 			<File
+				RelativePath=".\SeqHeaderParser.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\SolveigMMConfig.idl"
 				>
 				<FileConfiguration
 					Name="Debug|Win32"
+					ExcludedFromBuild="true"
 					>
 					<Tool
 						Name="VCMIDLTool"
@@ -656,6 +665,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\ParseMP3Frame.h"
+				>
+			</File>
+			<File
 				RelativePath=".\pins.h"
 				>
 			</File>
@@ -673,6 +686,10 @@
 			</File>
 			<File
 				RelativePath=".\SampleBuffer.h"
+				>
+			</File>
+			<File
+				RelativePath=".\SeqHeaderParser.h"
 				>
 			</File>
 			<File

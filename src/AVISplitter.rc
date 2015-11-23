@@ -65,8 +65,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,0,1511,6
- PRODUCTVERSION 1,0,1511,6
+ FILEVERSION 1,0,1511,23
+ PRODUCTVERSION 1,0,1511,23
  FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -84,11 +84,11 @@ BEGIN
             VALUE "Comments", "SolveigMM AVI Splitter"
             VALUE "CompanyName", "Solveig Multimedia"
             VALUE "FileDescription", "SMM_AVISplitter.ax"
-            VALUE "FileVersion", "1, 0, 1511, 6"
+            VALUE "FileVersion", "1, 0, 1511, 23"
             VALUE "InternalName", "SMM_AVISplitter.ax"
             VALUE "LegalCopyright", "Copyright © 2009-2015 Solveig Multimedia"
             VALUE "OriginalFilename", "SMM_AVISplitter.ax"
-            VALUE "ProductVersion", "1, 0, 1511, 6"
+            VALUE "ProductVersion", "1, 0, 1511, 23"
         END
     END
     BLOCK "VarFileInfo"

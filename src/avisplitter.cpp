@@ -28,6 +28,7 @@ THE SOFTWARE.
 #include "stdafx.h"
 #include "avisplitter.h"
 #include "proppages.h"
+#include "ParseMP3Frame.h"
 
 
 //////////////////////////////// filter registration tables
@@ -605,7 +606,43 @@ void CAVISplitter::DeselectSeekingPin()
     m_pSeekingPin = NULL;
 }
 
+void CAVISplitter::checkMediaTypes(CAVIOutputPin* pPin)
+{
+    CMediaType mt;
+    pPin->GetMediaType(0, &mt);
+    if (mt.majortype == MEDIATYPE_Audio)
+    {
+        WAVEFORMATEX* pwf = (WAVEFORMATEX*)mt.pbFormat;
+        AVIStreamHeader& streamheader = pPin->GetStreamHeader();
+        if (pwf->wFormatTag == 0x55 && streamheader.dwSampleSize != 0)
+        {// check nAvgBytesPerSec for cbr mp3 files  
+            // get first sample for audio
+            BYTE* pData = 0;
+            DWORD dataLen;
+            pPin->GetFirstSampleData(&pData, dataLen);
+            if (pData)
+            { 
+                CParseFrame pars;
+                FrameInfo prevfi;
+                FrameInfo fi;
+                fi = pars.FindFirstStartCode(pData, dataLen, 0,prevfi);
+                if (fi.nStCodePos != -1)
+                {
+                    DWORD actualnAvgBytesPerSec = fi.bitrate/8;
+                    if (pwf->nAvgBytesPerSec !=actualnAvgBytesPerSec )
+                    {
+                        pwf->nAvgBytesPerSec = actualnAvgBytesPerSec;
+                        pPin->SetMediaType(&mt);
+                    }
+                }
 
+                delete pData;
+            }
+        }
+
+    }
+
+}
 void CAVISplitter::ReCreateOuputPins()
 {
 	DeleteOuputPins();
@@ -616,6 +653,8 @@ void CAVISplitter::ReCreateOuputPins()
         m_outpins[i]->SetIndex(m_scanner.getIndex(i));
         AVIStreamHeader strh = m_scanner.getStreamHeader(i);       
         m_outpins[i]->SetStreamHeader(strh);
+
+        checkMediaTypes(m_outpins[i]);       
     }
     
 }

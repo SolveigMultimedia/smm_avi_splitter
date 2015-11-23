@@ -41,6 +41,7 @@ THE SOFTWARE.
 #include "SampleBuffer.h"
 class CAVISplitter;
 #include "pins_creator.h"
+#include "SeqHeaderParser.h"
 class CStreamInputPin : public CBasePin
 {
 public:
@@ -120,6 +121,8 @@ public:
     REFERENCE_TIME GetCurTime(int sampleIdx);
     REFERENCE_TIME GetTotalDuration();
     virtual int GetIndexStartPosEntry(const REFERENCE_TIME& tStart);
+    void GetFirstSampleData(BYTE** pData, DWORD& dataLen);
+    AVIStreamHeader& GetStreamHeader();
 // IMediaSeeking
 public:
     STDMETHODIMP GetCapabilities(DWORD * pCapabilities );
@@ -203,6 +206,7 @@ public:
 
 
 	HRESULT DecideBufferSize(IMemAllocator* pAlloc, ALLOCATOR_PROPERTIES* pprop);
+    virtual HRESULT Active();
 	virtual HRESULT Inactive();
     virtual int GetIndexStartPosEntry(const REFERENCE_TIME& tStart);
     virtual HRESULT Deliver(IMediaSample *);
@@ -210,9 +214,7 @@ protected:
 	virtual void resetFlags();
 	
 private:
-    bool findH264SPSPPS(const BYTE* data, int dataSize, BYTE** pOutput, int& outputLen);
-    int  IsAVCStartCode(const BYTE * pBuf);
-
+    CSeqHeaderSimpleParser m_seqHParser;
 };
 
 

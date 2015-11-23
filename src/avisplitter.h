@@ -126,6 +126,7 @@ private:
 	~CAVISplitter();
 
 	bool hasAnyOutpinConnected();
+    void checkMediaTypes(CAVIOutputPin* pPin);
 
 	// Pulling thread procedure
 	DWORD ThreadProc();

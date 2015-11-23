@@ -229,6 +229,11 @@ void CAVIOutputPin::SetStreamHeader(AVIStreamHeader& strh)
 {
     m_AVIStreamHeader = strh;
 }
+AVIStreamHeader& CAVIOutputPin::GetStreamHeader()
+{
+    return m_AVIStreamHeader;
+}
+
 void CAVIOutputPin::StopProcess()
 {
     CallWorker(tm_stop);
@@ -243,6 +248,17 @@ void CAVIOutputPin::StartProcess()
 int CAVIOutputPin::GetIndexStartPosEntry(const REFERENCE_TIME& tStart)
 {
     return 0;   
+}
+void CAVIOutputPin::GetFirstSampleData(BYTE** pData, DWORD& dataLen)
+{
+    CAVIScanner* scanner = m_pSplitter->GetAVIScanner();
+    if ((*m_pIndex).size())
+    {        
+        const INDEXENTRY& entry = (*m_pIndex)[0];
+        *pData = new BYTE[entry.dwChunkLength];
+        dataLen = entry.dwChunkLength;
+        scanner->ReadData(entry.chunkOffset, entry.dwChunkLength, *pData);  
+    }
 }
 
 REFERENCE_TIME CAVIOutputPin::GetTotalDuration()
@@ -262,13 +278,15 @@ REFERENCE_TIME CAVIOutputPin::GetTotalDuration()
             WAVEFORMATEX* pwfx =  (WAVEFORMATEX*)m_mt.Format();
             if (!pwfx->nAvgBytesPerSec || !m_pIndex->size())
                 return 0;
-             ULONGLONG totalBytes = (*m_pIndex)[m_pIndex->size()-1].cumlen; 
+            ULONGLONG totalBytes = (*m_pIndex)[m_pIndex->size()-1].cumlen +(*m_pIndex)[m_pIndex->size()-1].dwChunkLength;
+              double retd = 0;
             if (m_AVIStreamHeader.dwSampleSize == 0)
             { // vbr       
-                ret = (REFERENCE_TIME)m_pIndex->size()*1e7*m_AVIStreamHeader.dwScale/ m_AVIStreamHeader.dwRate;              
+                retd = m_pIndex->size()*1e7*m_AVIStreamHeader.dwScale/ m_AVIStreamHeader.dwRate;              
             }
             else                      
-                ret = (REFERENCE_TIME)((double)totalBytes)/pwfx->nAvgBytesPerSec*1e7;
+                retd = ((double)totalBytes)/pwfx->nAvgBytesPerSec*1e7;
+            ret =  (REFERENCE_TIME)floor(retd+0.5);
         }
     }
     return ret;
@@ -351,16 +369,24 @@ DWORD CAVIOutputPin::ThreadProc()
         tStop = GetCurTime(i+1)- tSeekStart;
        
         pSample->SetTime(&tStart,&tStop);
-        if (tStart < 0 && tStop < 0)
+        if (tStart < 0 && tStop <= 0)
             pSample->SetPreroll(TRUE);
 
         BYTE* pbData = 0;
         pSample->GetPointer(&pbData);
         scanner->ReadData(entry.chunkOffset, entry.dwChunkLength, pbData);   
         hr = Deliver(pSample);
-        if (FAILED(hr))
+        if (FAILED(hr) || hr == S_FALSE)
         {
-            int i = 0;
+            while(true)
+            {
+                if (CheckRequest(&req)) 
+                {
+                    bDeliverEOS = false;          
+                    break;
+                }
+                Sleep(100);
+            }           
         }
     }
     if (bDeliverEOS)
@@ -765,6 +791,13 @@ CAVIVideoPin::~CAVIVideoPin()
 
 }
 
+HRESULT CAVIVideoPin::Active()
+{
+   
+    m_seqHParser.Init( ((VIDEOINFOHEADER*)m_mt.pbFormat)->bmiHeader.biCompression);
+    return CAVIOutputPin::Active();
+}
+
 HRESULT CAVIVideoPin::Inactive()
 {
 	return CAVIOutputPin::Inactive();
@@ -774,23 +807,29 @@ HRESULT CAVIVideoPin::Deliver(IMediaSample *pSample)
      CComPtr<IMediaSample> pSampleDeliver = pSample;
     if (pSample->IsDiscontinuity() == S_OK)
     {
-        if ((m_mt.subtype == FOURCCMap(MAKEFOURCC('H','2','6','4'))) || (m_mt.subtype == FOURCCMap(MAKEFOURCC('h','2','6','4'))) || (m_mt.subtype == FOURCCMap(MAKEFOURCC('x','2','6','4'))))
-        {// check that sps pps present
-            BYTE* pBuffer = NULL;
+        if (m_seqHParser.isInited())
+        {
+             BYTE* pBuffer = NULL;
             pSample->GetPointer(&pBuffer);
             long len = pSample->GetActualDataLength();
-            int  decoderConfigLen = 0;
-            if (!findH264SPSPPS(pBuffer, len, NULL, decoderConfigLen))
-            { // get it from the first sample
+            if (!m_seqHParser.ParseFrame(pBuffer, len))
+            {
+                // get it from the first sample
                 const INDEXENTRY& entry = (*m_pIndex)[0];
                 BYTE* pTempData = new BYTE[entry.dwChunkLength];
                  CAVIScanner* scanner = m_pSplitter->GetAVIScanner();
                 scanner->ReadData(entry.chunkOffset, entry.dwChunkLength, pTempData); 
                 BYTE* pDecoderConfig = NULL;
                 int decoderConfigLen = 0;
-                if (findH264SPSPPS(pTempData, entry.dwChunkLength, &pDecoderConfig, decoderConfigLen))
+                if (m_seqHParser.ParseFrame(pTempData, entry.dwChunkLength))
                 {
-                    long newsampleLen = decoderConfigLen+len;
+                    decoderConfigLen = m_seqHParser.VisualObjSeq().obj_len+m_seqHParser.Pic_Parameter_Set().obj_len;
+                    pDecoderConfig = new BYTE[decoderConfigLen];
+                    memcpy(pDecoderConfig, m_seqHParser.VisualObjSeq().obj, m_seqHParser.VisualObjSeq().obj_len);
+                    if (m_seqHParser.Pic_Parameter_Set().obj_len)
+                        memcpy(pDecoderConfig+m_seqHParser.VisualObjSeq().obj_len, m_seqHParser.Pic_Parameter_Set().obj, m_seqHParser.Pic_Parameter_Set().obj_len);
+
+                     long newsampleLen = decoderConfigLen+len;
                     CComPtr<IMediaSample> pNewSample;
                     HRESULT hr = GetNewSample(&pNewSample, newsampleLen);
                     ASSERT(hr == S_OK);
@@ -824,66 +863,19 @@ HRESULT CAVIVideoPin::Deliver(IMediaSample *pSample)
                     }
 
                     delete pDecoderConfig;
+
                 }
                 delete pTempData;
 
             }
-        }
+
+        }      
     }
     return CAVIOutputPin::Deliver(pSampleDeliver);
 }
 
-int CAVIVideoPin::IsAVCStartCode(const BYTE * pBuf)
-{
-	if (pBuf[0] == 0x00 && pBuf[1] == 0x00  && pBuf[2] == 0x00 && pBuf[3] == 0x01)
-		return 4;
-	else if (pBuf[0] == 0x00 && pBuf[1] == 0x00  && pBuf[2] == 0x01 )
-		return 3;
-	return 0;
-}
 
-bool CAVIVideoPin::findH264SPSPPS(const BYTE* data, int dataSize, BYTE** pOutput, int& outputLen)
-{
- 
 
-    const BYTE* pBuf = data;
-    const BYTE * pBufBound	= pBuf + dataSize;
-    const BYTE* pDecoderConfigStart = 0;
-    for( ; pBuf + 4 < pBufBound ; pBuf++) 
-    {
-        int startCodeSize = IsAVCStartCode(pBuf);
-        if (startCodeSize != 0)
-        {
-            uint8 nal_unit_type  = pBuf[startCodeSize] & 0x1F/*5 last bits*/;
-            if (nal_unit_type == 0x7/*sps*/)
-            {
-               
-                if (!pDecoderConfigStart)
-                    pDecoderConfigStart = pBuf;
-            }
-            else if (nal_unit_type == 0x8/*pps*/)
-            {
-                      
-            }
-            if (!pOutput && pDecoderConfigStart )
-                break;
-            if (pOutput && pDecoderConfigStart)
-            {
-                if (((nal_unit_type != 0x7) && (nal_unit_type != 0x8)))
-                {
-                    outputLen = pBuf - pDecoderConfigStart;
-                    *pOutput = new BYTE[outputLen];
-                    memcpy(*pOutput, pDecoderConfigStart,outputLen); 
-                    break;
-                }
-              
-            }
-
-            pBuf+=startCodeSize;
-        }
-    }
-    return pDecoderConfigStart?true:false;
-}
 int CAVIVideoPin::GetIndexStartPosEntry(const REFERENCE_TIME& tStart)
 {
     int dstIndex =0;
@@ -993,6 +985,10 @@ int CAVIAudioPin::GetIndexStartPosEntry(const REFERENCE_TIME& tStart)
             int ret = (i>0)?i-1:0;       
             return ret;
         }
+    }
+    if (dstCumLen)
+    {
+        return m_pIndex->size() -1;
     }
     return 0;   
 }
